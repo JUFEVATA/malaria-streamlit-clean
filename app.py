@@ -10,20 +10,46 @@ st.set_page_config(
 )
 
 CLASS_NAMES = ["Parasitized", "Uninfected"]
-IMG_SIZE = (224, 224)
+
 @st.cache_resource
 def load_model():
     return tf.keras.models.load_model("artifacts/lenet.keras")
 
-def preprocess_image(image: Image.Image) -> np.ndarray:
-    image = image.convert("RGB")
-    image = image.resize(IMG_SIZE)
+def get_model_input_size(model):
+    input_shape = model.input_shape
+
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+
+    if len(input_shape) != 4:
+        raise ValueError(f"Forma de entrada no soportada: {input_shape}")
+
+    _, height, width, channels = input_shape
+
+    if height is None or width is None:
+        raise ValueError(f"No se pudo inferir tamaño de entrada del modelo: {input_shape}")
+
+    return int(height), int(width), int(channels)
+
+def preprocess_image(image: Image.Image, model) -> np.ndarray:
+    height, width, channels = get_model_input_size(model)
+
+    if channels == 1:
+        image = image.convert("L")
+    else:
+        image = image.convert("RGB")
+
+    image = image.resize((width, height))
     img_array = np.array(image, dtype=np.float32) / 255.0
+
+    if channels == 1:
+        img_array = np.expand_dims(img_array, axis=-1)
+
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
 def predict_image(model, image: Image.Image):
-    processed = preprocess_image(image)
+    processed = preprocess_image(image, model)
     prediction = model.predict(processed, verbose=0)
 
     if prediction.shape[-1] == 1:
@@ -35,7 +61,7 @@ def predict_image(model, image: Image.Image):
         label = CLASS_NAMES[pred_idx]
         confidence = float(np.max(prediction))
 
-    return label, confidence * 100, prediction.shape
+    return label, confidence * 100, prediction.shape, processed.shape
 
 st.title("🦠 Clasificador de Malaria")
 st.markdown(
@@ -51,9 +77,14 @@ st.markdown(
 
 try:
     model = load_model()
+    input_shape = model.input_shape
+    output_shape = model.output_shape
 except Exception as e:
     st.error(f"No se pudo cargar el modelo: {e}")
     st.stop()
+
+st.write("**Input shape del modelo:**", input_shape)
+st.write("**Output shape del modelo:**", output_shape)
 
 uploaded = st.file_uploader(
     "Sube una imagen de célula (JPG o PNG)",
@@ -77,7 +108,7 @@ if uploaded is not None:
 
         if st.button("Predecir", use_container_width=True):
             with st.spinner("Procesando imagen..."):
-                label, confidence, prediction_shape = predict_image(model, img)
+                label, confidence, prediction_shape, processed_shape = predict_image(model, img)
 
             st.write("## Resultado")
 
@@ -87,7 +118,8 @@ if uploaded is not None:
                 st.success(f"**Clase predicha:** {label}")
 
             st.metric("Confianza", f"{confidence:.2f}%")
-            st.write(f"**Salida del modelo:** {prediction_shape}")
+            st.write(f"**Forma de entrada enviada al modelo:** {processed_shape}")
+            st.write(f"**Forma de salida del modelo:** {prediction_shape}")
 
     except Exception as e:
         st.error(f"Error procesando la imagen: {e}")
