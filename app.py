@@ -13,7 +13,7 @@ CLASS_NAMES = ["Parasitized", "Uninfected"]
 
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("artifacts/lenet.keras")
+    return tf.keras.models.load_model("artifacts/lenet.h5")
 
 def get_model_input_size(model):
     input_shape = model.input_shape
