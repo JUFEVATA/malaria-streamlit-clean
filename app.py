@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-CLASS_NAMES = ["Parasitized", "Uninfected"]
+CLASS_NAMES = ["Uninfected", "Parasitized"]
 
 @st.cache_resource
 def load_model():
